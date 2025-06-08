@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    // Environment setup & latest features
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "allowJs": true,
+
+    // Bundler mode
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "allowSyntheticDefaultImports": true,
+
+    // Best practices
+    "strict": false,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "exactOptionalPropertyTypes": true,
+
+    "paths": {
+      "@xf-common/*": ["../xf-common/source/*"],
+    }
+  },
+  "include": [
+    "source/**/*.ts",
+    "../xf-common/source/**/*.ts",
+  ],
+}

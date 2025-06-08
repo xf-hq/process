@@ -1,0 +1,19 @@
+{
+  "name": "xf-process",
+  "version": "1.0.0",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@stylistic/eslint-plugin": "latest",
+    "@types/bun": "latest",
+    "eslint": "latest",
+    "typescript-eslint": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "latest"
+  },
+  "dependencies": {
+    "chalk": "latest",
+    "jsonc-parser": "latest"
+  }
+}
