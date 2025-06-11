@@ -110,7 +110,7 @@ class WatchedLocation implements Subscribable.DemandObserver.ListenerInterface<[
     const loc = this.locations.get(path);
     if (loc) {
       console.debug(`Signalling child location:`, loc.path);
-      loc.controller.signal(event, Path.join(this.path, path), stats);
+      loc.controller.event(event, Path.join(this.path, path), stats);
     }
   }
   private initializeEntries (): void {
@@ -184,7 +184,7 @@ class WatchedLocation implements Subscribable.DemandObserver.ListenerInterface<[
       }
     }
     console.debug(`Signalling event:`, event, `for path:`, path);
-    this.#controller.signal(event, path, stats);
+    this.#controller.event(event, path, stats);
   }
 
   private onSubscriptionEvent (event: FileSystemWatcher.Event, path: string, stats: FS.Stats | undefined): void {
