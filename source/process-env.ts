@@ -42,7 +42,7 @@ export class ProcessEnv {
 
   static dbPath (nameOnly: string) { return Path.resolve(dbDir, `${nameOnly}.db`); }
 
-  static resolve (...paths: string[]) { return Path.resolve(packageJsonDir, ...paths); }
+  static resolve (...paths: string[]) { return Path.resolve(repoRootDir, ...paths); }
 }
 export namespace ProcessEnv {
   export interface Options {
@@ -64,7 +64,7 @@ export namespace ProcessEnv {
   export async function initialize (options: Options = {}): Promise<void> {
     const MAIN_SCRIPT_URL = Bun.main;
     const MAIN_SCRIPT_DIR = Path.dirname(MAIN_SCRIPT_URL);
-    packageJsonPath = await findClosestFilePathTowardsRoot(MAIN_SCRIPT_DIR, 'package.json');
+    packageJsonPath = await findClosestFileSystemPathTowardsRoot(MAIN_SCRIPT_DIR, 'package.json');
     packageJsonDir = Path.dirname(packageJsonPath);
     repoRootDir = await findClosestDirContainingFileOrDirName(packageJsonDir, '.git');
     dbDir = Path.resolve(repoRootDir, '.db');
@@ -74,11 +74,11 @@ export namespace ProcessEnv {
   }
 
   async function loadSecrets (options: Options): Promise<void> {
-    const secretsPath = await findClosestFilePathTowardsRoot(packageJsonDir, 'secrets.json');
+    const secretsPath = await findClosestFileSystemPathTowardsRoot(packageJsonDir, 'secrets.json');
     secrets = await loadJSONCFile<Secrets>(secretsPath);
     if (options.certificates) {
       const secretsDir = Path.dirname(secretsPath);
-      const keyPath = await findClosestFilePathTowardsRoot(secretsDir, 'localhost-key.pem');
+      const keyPath = await findClosestFileSystemPathTowardsRoot(secretsDir, 'localhost-key.pem');
       const certPath = Path.join(Path.dirname(keyPath), 'localhost.pem');
       certificates = {
         'localhost.key': keyPath,
@@ -98,7 +98,10 @@ export namespace ProcessEnv {
     return output;
   }
 
-  export async function findClosestFilePathTowardsRoot (dir: string, filename: string): Promise<string> {
+  export async function findClosestFileSystemPathTowardsRoot (filename: string): Promise<string>;
+  export async function findClosestFileSystemPathTowardsRoot (dir: string, filename: string): Promise<string>;
+  export async function findClosestFileSystemPathTowardsRoot (arg0: string, arg1?: string): Promise<string> {
+    const [dir, filename] = arguments.length === 1 ? [Path.dirname(Bun.main), arg0] : [arg0, arg1!];
     try {
       const filePath = Path.join(dir, filename);
       await FSP.access(filePath, FSP.constants.R_OK);
@@ -109,7 +112,7 @@ export namespace ProcessEnv {
       if (parentDir === dir) {
         throw new Error(`No file named ${filename} was found in ${dir} or any directory above it.`);
       }
-      return findClosestFilePathTowardsRoot(parentDir, filename);
+      return findClosestFileSystemPathTowardsRoot(parentDir, filename);
     }
   }
 
