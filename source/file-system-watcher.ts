@@ -1,6 +1,7 @@
 import { MapSource, SetSource, Subscribable } from '@xf-common/dynamic';
 import { SharedDemandAbortController } from '@xf-common/general/abort-signals';
 import { dispose, tryDispose } from '@xf-common/general/disposables';
+import { returnVoid } from '@xf-common/general/presets';
 import * as FS from 'node:fs';
 import * as OS from 'node:os';
 import * as Path from 'node:path';
@@ -8,9 +9,9 @@ import * as Path from 'node:path';
 export class FileSystemWatcher {
   readonly #locations = new Map<string, WatchedLocation>();
 
-  watch (path: string, abort: AbortSignal, listener: (event: FileSystemWatcher.Event, path: string) => void): FileSystemWatcher.Location {
+  watch (path: string, abort: AbortSignal, listener?: (event: FileSystemWatcher.Event, path: string) => void): FileSystemWatcher.Location {
     const loc = FileSystemWatcher._ensureLocation(this, path);
-    const sub = loc.controller.subscribe(listener);
+    const sub = loc.controller.subscribe(listener ?? returnVoid);
     abort.addEventListener('abort', () => dispose(sub));
     return loc;
   }
@@ -38,6 +39,7 @@ export namespace FileSystemWatcher {
     readonly filePaths: SetSource<string>;
     readonly subdirPaths: SetSource<string>;
     readonly entries: MapSource<string, FS.StatsBase<any>>;
+    ensureParentDirectoryExists (): void;
   }
 }
 
@@ -74,6 +76,11 @@ class WatchedLocation implements Subscribable.DemandObserver.ListenerInterface<[
   get filePaths (): SetSource.Manual<string> { return this.#filePaths ??= SetSource.create(); }
   get subdirPaths (): SetSource.Manual<string> { return this.#subdirPaths ??= SetSource.create(); }
   get entries (): MapSource.Manual<string, FS.StatsBase<any>> { return this.#entries ??= MapSource.create(); }
+
+  ensureParentDirectoryExists (): void {
+    if (this.exists) return;
+    FS.mkdirSync(Path.dirname(this.path), { recursive: true });
+  }
 
   attachChild (child: WatchedLocation, signal: AbortSignal): void {
     const children = this.#attachedChildren ??= new Map();
