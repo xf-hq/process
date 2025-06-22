@@ -116,7 +116,7 @@ class WatchedLocation implements Subscribable.DemandObserver.ListenerInterface<[
   private forwardEventToChildLocation (event: FileSystemWatcher.Event, path: string, stats: FS.Stats | undefined): void {
     const loc = this.locations.get(path);
     if (loc) {
-      console.debug(`Signalling child location:`, loc.path);
+      // console.debug(`Signalling child location:`, loc.path);
       loc.controller.event(event, Path.join(this.path, path), stats);
     }
   }
@@ -158,7 +158,8 @@ class WatchedLocation implements Subscribable.DemandObserver.ListenerInterface<[
   }
 
   private onNativeWatcherEvent (nativeEvent: FS.WatchEventType, filename: string | null): void {
-    console.debug(`onNativeWatcherEvent:`, nativeEvent, filename);
+    // console.debug(`onNativeWatcherEvent:`, nativeEvent, filename);
+
     // If no filename is provided, I really don't care about the event.
     if (!filename) return;
     const path = Path.join(this.path, filename);
@@ -190,7 +191,7 @@ class WatchedLocation implements Subscribable.DemandObserver.ListenerInterface<[
         break;
       }
     }
-    console.debug(`Signalling event:`, event, `for path:`, path);
+    // console.debug(`Signalling event:`, event, `for path:`, path);
     this.#controller.event(event, path, stats);
   }
 

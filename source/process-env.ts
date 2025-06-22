@@ -53,7 +53,7 @@ export namespace ProcessEnv {
      * - `string`: Absolute path to a JSON file containing secrets. If the file is not found, an error will be thrown.
      */
     secrets?: boolean | string;
-    certificates?: boolean | string;
+    certificates?: boolean/*  | string */;
   }
   export interface Secrets extends Readonly<Record<string, any>> {}
   export interface Certificates extends Readonly<Record<string, any>> {
@@ -69,17 +69,12 @@ export namespace ProcessEnv {
     repoRootDir = await findClosestDirContainingFileOrDirName(packageJsonDir, '.git');
     dbDir = Path.resolve(repoRootDir, '.db');
     if (options.secrets) {
-      await loadSecrets(options);
+      const secretsPath = await findClosestFileSystemPathTowardsRoot(packageJsonDir, 'secrets.json');
+      secrets = loadJSONCFile<Secrets>(secretsPath);
     }
-  }
-
-  async function loadSecrets (options: Options): Promise<void> {
-    const secretsPath = await findClosestFileSystemPathTowardsRoot(packageJsonDir, 'secrets.json');
-    secrets = await loadJSONCFile<Secrets>(secretsPath);
     if (options.certificates) {
-      const secretsDir = Path.dirname(secretsPath);
-      const keyPath = await findClosestFileSystemPathTowardsRoot(secretsDir, 'localhost-key.pem');
-      const certPath = Path.join(Path.dirname(keyPath), 'localhost.pem');
+      const keyPath = await findClosestFileSystemPathTowardsRoot(packageJsonDir, 'key.pem');
+      const certPath = Path.join(Path.dirname(keyPath), 'cert.pem');
       certificates = {
         'localhost.key': keyPath,
         'localhost.cert': certPath,
