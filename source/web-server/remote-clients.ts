@@ -22,11 +22,13 @@ export class RemoteClientsGroup<TServerContext = unknown> implements RemoteClien
 
   add (client: RemoteClient<TServerContext>): void {
     const activeInGroup = new AbortController();
+    // console.debug(`Adding client #${client.id} to the group.`);
     this.#clients.set(client.id, { client, activeInGroup });
     client.onClose(() => this.remove(client), activeInGroup.signal);
   }
 
   remove (client: RemoteClient<TServerContext>): void {
+    // console.debug(`Removing client #${client.id} from the group.`);
     const entry = this.#clients.get(client.id);
     if (entry) {
       this.#clients.delete(client.id);

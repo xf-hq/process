@@ -1,9 +1,9 @@
 import { isFunction } from '@xf-common/general/type-checking.ts';
-import type { BunFile, Server } from 'bun';
+import { terminal } from '@xf-common/terminal/terminal';
+import type { Server } from 'bun';
 import { ProcessEnv } from '../process-env.ts';
 import { RemoteClient, RemoteClientManager, type ClientWebSocket, type RemoteClients } from './remote-clients.ts';
 import { Router, type RoutePathMapSpec } from './router.ts';
-import { terminal } from '@xf-common/terminal/terminal';
 
 const log = terminal.logger(`Web Server`);
 
@@ -18,30 +18,31 @@ export class WebServer<TServerContext> {
   static async initialize<TServerContext> (config: WebServer.Config<TServerContext>): Promise<WebServer<TServerContext>> {
     const clients = new RemoteClientManager<TServerContext>(config.context);
     const router = Router.parse(isFunction(config.routes) ? await config.routes(clients) : config.routes);
-    const server = Bun.serve<ClientWebSocket.Data<TServerContext>, any>({
+    const server: Bun.Server = Bun.serve<ClientWebSocket.Data<TServerContext>, any>({
+      development: true,
       port: config.port,
-      // tls: {
-      //   key: Bun.file(ProcessEnv.Certificates['localhost.key']),
-      //   cert: Bun.file(ProcessEnv.Certificates['localhost.cert']),
-      // },
-      async fetch (req) {
-        log.verbose(`Incoming HTTP request: ${req.method} ${req.url}`);
-        const data = { client: null as RemoteClient<TServerContext> | null };
-
-        if (server.upgrade(req, { data })) {
-          log.verbose(`Incoming WebSocket connection: ${req.url}`);
-          router.dispatch(req, data.client!);
+      key: Bun.file(ProcessEnv.Certificates['localhost.key']),
+      cert: Bun.file(ProcessEnv.Certificates['localhost.cert']),
+      fetch (req, server) {
+        const url = new URL(req.url);
+        const isUpgradeRequest = req.headers.get('upgrade');
+        log.verbose(`Incoming Request: ${isUpgradeRequest ? 'WebSocket Upgrade' : `HTTP ${req.method}`} ${url.pathname}`);
+        if (isUpgradeRequest) {
+          const data = { client: null as RemoteClient<TServerContext> | null };
+          if (server.upgrade(req, { data })) {
+            return router.dispatch(req, data.client!);
+          }
+          return new Response('Bad Request', { status: 400 });
         }
-        else {
-          return await new Promise<Response>((resolve) => {
-            router.dispatch(req, null, resolve);
-          });
-        }
+        const { resolve, promise } = Promise.withResolvers<Response>();
+        router.dispatch(req, null, resolve);
+        return promise;
       },
       websocket: {
         open (ws) { ws.data.client = clients.allocate(ws); },
         close (ws) { ws.data.client.webSocketClosed(); },
         message (ws, message) { ws.data.client.webSocketMessage(message); },
+        // drain (ws) { console.debug(`ws drain`); }
       },
     });
 

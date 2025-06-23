@@ -97,7 +97,7 @@ export class WebRequest {
   serveJS (js: string) { this.serveContent('application/javascript', js); }
   serveHTML (html: string) { this.serveContent('text/html', html); }
   serveCSS (css: string) { this.serveContent('text/css', css); }
-  serveSVG (css: string) { this.serveContent('image/svg+xml', css); }
+  serveSVG (svg: string) { this.serveContent('image/svg+xml', svg); }
 }
 
 class RequestHeaders {

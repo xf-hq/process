@@ -29,4 +29,11 @@
     "source/**/*.ts",
     "../xf-common/source/**/*.ts",
   ],
+  "exclude": [
+    "**/*.old.ts",
+    "**/*.old",
+    "**/*.OLD.ts",
+    "**/*.OLD",
+    "**/*.test.ts",
+  ]
 }
