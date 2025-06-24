@@ -3,16 +3,17 @@
   "version": "1.0.0",
   "type": "module",
   "devDependencies": {
-    "@eslint/js": "latest",
-    "@stylistic/eslint-plugin": "latest",
-    "@types/bun": "latest",
-    "eslint": "latest",
-    "typescript-eslint": "latest"
+    "@eslint/js": "^9.29.0",
+    "@stylistic/eslint-plugin": "^5.0.0",
+    "@types/bun": "^1.2.17",
+    "eslint": "^9.29.0",
+    "typescript-eslint": "^8.35.0"
   },
   "peerDependencies": {
     "typescript": "latest"
   },
   "dependencies": {
+    "@typescript-eslint/tsconfig-utils": "^8.35.0",
     "chalk": "latest",
     "jsonc-parser": "latest"
   }

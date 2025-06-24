@@ -32,6 +32,7 @@ export async function initializeScriptBundle (options: BundlerOptions) {
   const proc = spawn('bun', args, {
     cwd: projectDir,
     stdio: ['pipe', 'pipe', 'pipe'],
+    // stdio: ['inherit', 'inherit', 'inherit'],
     detached: false,
   });
 
