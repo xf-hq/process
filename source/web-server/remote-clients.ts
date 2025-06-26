@@ -1,6 +1,6 @@
 import { MapSource } from '@xf-common/dynamic';
-import { PathReader } from '@xf-common/facilities/path-reader';
-import { DisposableGroup, dispose, tryDispose } from '@xf-common/general/disposables.ts';
+import { PathLens } from '@xf-common/facilities/path-lens';
+import { dispose } from '@xf-common/general/disposables.ts';
 import { IdGenerator } from '@xf-common/general/ids-and-caching.ts';
 import { isString } from '@xf-common/general/type-checking';
 import type { Messaging } from '@xf-common/network/messaging';
@@ -99,9 +99,9 @@ class RemoteClientsController<TServerContext> {
 
 export interface RemoteClient<TServerContext = unknown> extends Disposable {
   readonly id: number;
-  readonly disposables: DisposableGroup;
+  readonly abortSignal: AbortSignal;
 
-  configure (messageHandler: Messaging.MessageHandler, onClosed?: () => void): void;
+  configureMessaging<TMessageContext extends Messaging.InboundMessageContext>(config: RemoteClient.MessagingConfig<TMessageContext, TServerContext>): void;
   send (message: any): void;
   reject (): void;
   onClose (callback: () => void, abort?: AbortSignal): void;
@@ -112,17 +112,18 @@ export namespace RemoteClient {
     constructor (controller: RemoteClientsController<TServerContext>, ws: ClientWebSocket<TServerContext>) {
       this._controller = controller;
       this._ws = ws;
+      this._abortController = new AbortController();
     }
     private readonly _controller: RemoteClientsController<TServerContext>;
     private readonly _ws: ClientWebSocket<TServerContext>;
     private readonly _id = IdGenerator.global();
+    private readonly _abortController: AbortController;
     private _disposed = false;
-    private _messageHandler: Messaging.MessageHandler | null = null;
+    private _messaging?: MessagingConfig<Messaging.InboundMessageContext, TServerContext>;
     private _onClosed?: Set<() => void>;
-    private _disposables?: DisposableGroup;
 
     get id () { return this._id; }
-    get disposables () { return this._disposables ??= new DisposableGroup(); }
+    get abortSignal () { return this._abortController.signal; }
 
     webSocketClosed () {
       if (this._onClosed) {
@@ -140,16 +141,20 @@ export namespace RemoteClient {
         console.warn(`Received malformed message from client #${this.id}:`, rawMessage);
         return;
       }
-      const messageHandler = this._messageHandler;
-      if (messageHandler) return messageHandler.handleMessage({
-        messageType: PathReader.from(message.type),
-        messageData: message.data,
-      })
+      const messaging = this._messaging;
+      if (messaging) {
+        const context = messaging.createContext(
+          PathLens.from(':', message.type),
+          message.data,
+          this._controller.serverContext,
+        );
+        return messaging.router.handleMessage(context);
+      }
     }
 
-    configure (messageHandler: Messaging.MessageHandler, onClosed?: () => void): void {
-      this._messageHandler = messageHandler;
-      if (onClosed) this.onClose(onClosed);
+    configureMessaging<TMessageContext extends Messaging.InboundMessageContext>(config: MessagingConfig<TMessageContext, TServerContext>): void {
+      this._messaging = config;
+      if (config.onClosed) this.onClose(config.onClosed);
     }
 
     send (message: any) {
@@ -171,9 +176,15 @@ export namespace RemoteClient {
     [Symbol.dispose] () {
       if (this._disposed) return;
       this._disposed = true;
+      this._abortController.abort();
       this._ws.close();
       this._controller.releaseClient(this);
-      tryDispose(this._disposables);
     }
   };
+  export interface MessagingConfig<TMessageContext extends Messaging.InboundMessageContext, TServerContext> {
+    readonly abort?: AbortSignal;
+    readonly router: Messaging.MessageHandler<TMessageContext>;
+    readonly createContext: (messageType: PathLens, messageData: any, context: TServerContext) => TMessageContext;
+    readonly onClosed?: () => void;
+  }
 }
