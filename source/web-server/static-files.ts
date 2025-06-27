@@ -9,12 +9,15 @@ export namespace StaticFiles {
     if (isDefined(relativeSubPath)) absolutePublicPath = Path.join(absolutePublicPath, relativeSubPath);
     return {
       GET: async (request: WebRequest, pathIndex: number) => {
-        const relativePath = request.urlPathFrom(pathIndex);
-        const absolutePath = Path.join(absolutePublicPath, relativePath);
-        if (!absolutePath.startsWith(absolutePublicPath)) return request.serveNotFound();
-        await serve(absolutePath, request);
+        await handleRequest(absolutePublicPath, request, pathIndex);
       },
     };
+  }
+  export async function handleRequest (absoluteBasePath: string, request: WebRequest, pathIndex: number) {
+    const relativePath = request.urlPathFrom(pathIndex);
+    const absolutePath = Path.join(absoluteBasePath, relativePath);
+    if (!absolutePath.startsWith(absoluteBasePath)) return request.serveNotFound();
+    await serve(absolutePath, request);
   }
   export async function serve (absolutePath: string, request: WebRequest) {
     if (!FS.existsSync(absolutePath)) {
