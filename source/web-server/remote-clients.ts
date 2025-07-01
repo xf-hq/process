@@ -83,6 +83,7 @@ class RemoteClientsController<TServerContext> {
 
   releaseClient (client: RemoteClient.Controller<TServerContext>): void {
     this.#clients.delete(client.id);
+    dispose(client);
   }
 
   send (clientId: number, message: any): void {
@@ -169,7 +170,9 @@ export namespace RemoteClient {
       const _onClosed = this._onClosed ??= new Set();
       _onClosed.add(callback);
       if (abort) {
-        abort.addEventListener('abort', () => _onClosed.delete(callback));
+        abort.addEventListener('abort', () => {
+          _onClosed.delete(callback);
+        });
       }
     }
 
