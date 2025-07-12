@@ -23,6 +23,40 @@ export interface BundlerOptions {
 export async function initializeScriptBundle (options: BundlerOptions) {
   const { log, onClientScriptUpdated, projectDir, entrypointPath } = options;
 
+  // [TEMPORARY BUN ISSUE WORKAROUND] Kill any existing Bun build processes to prevent orphaned processes:
+  try {
+    const { stdout } = Bun.spawn(['ps', 'aux'], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    const processes = await new Response(stdout).text();
+    const lines = processes.split('\n');
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes('bun') && line.includes('build') && line.includes('--watch')) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          const pid = parseInt(parts[1], 10);
+          if (!isNaN(pid) && pid !== process.pid) {
+            try {
+              process.kill(pid, 'SIGTERM');
+              log.info(`Killed existing Bun build process with pid ${pid}.`);
+            }
+            catch (error) {
+              // Process might have already been killed or we don't have permission
+              log.warn(`Failed to kill process ${pid}: ${error}`);
+            }
+          }
+        }
+      }
+    }
+  }
+  catch (error) {
+    log.verbose(`Failed to check for existing Bun processes: ${error}`);
+  }
+
   const tempDir = Path.join(OS.tmpdir(), `bun-bundle-${crypto.randomUUID()}`);
   await FS.mkdir(tempDir, { recursive: true });
 
@@ -31,8 +65,7 @@ export async function initializeScriptBundle (options: BundlerOptions) {
   const args = ['build', Path.resolve(projectDir, entrypointPath), '--outfile', bundlePath, '--watch', '--sourcemap=inline', '--no-clear-screen'];
   const proc = spawn('bun', args, {
     cwd: projectDir,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    // stdio: ['inherit', 'inherit', 'inherit'],
+    stdio: 'inherit',
     detached: false,
   });
 
