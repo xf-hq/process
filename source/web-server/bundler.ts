@@ -6,8 +6,9 @@ import * as OS from 'node:os';
 import * as Path from 'node:path';
 import type { WebRequest } from './web-request';
 import { debounce } from '@xf-common/general/timing';
+import { isUndefined } from '@xf-common/general/type-checking';
 
-export interface BundlerOptions {
+interface BundlerOptions {
   /**
    * Absolute path to a project directory containing a tsconfig.json file.
    */
@@ -17,45 +18,58 @@ export interface BundlerOptions {
    */
   readonly entrypointPath: string;
   readonly log: ConsoleLogger;
-  readonly onClientScriptUpdated?: () => void;
+  readonly onClientScriptUpdated?: (bundleFile: Bun.BunFile) => void;
 }
 
-export async function initializeScriptBundle (options: BundlerOptions) {
+export async function initializeScriptBundleRouteHandler (options: BundlerOptions) {
+  let bundleFile: Bun.BunFile = await initializeScriptBundle({
+    ...options,
+    onClientScriptUpdated: (_bundleFile) => {
+      bundleFile = _bundleFile;
+      options.onClientScriptUpdated?.(_bundleFile);
+    },
+  });
+  return function serveBundle (req: WebRequest) {
+    req.serve(new Response(bundleFile));
+  };
+}
+
+export async function initializeScriptBundle (options: BundlerOptions): Promise<Bun.BunFile> {
   const { log, onClientScriptUpdated, projectDir, entrypointPath } = options;
 
-  // [TEMPORARY BUN ISSUE WORKAROUND] Kill any existing Bun build processes to prevent orphaned processes:
-  try {
-    const { stdout } = Bun.spawn(['ps', 'aux'], {
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
+  // // [TEMPORARY BUN ISSUE WORKAROUND] Kill any existing Bun build processes to prevent orphaned processes:
+  // try {
+  //   const { stdout } = Bun.spawn(['ps', 'aux'], {
+  //     stdout: 'pipe',
+  //     stderr: 'pipe',
+  //   });
 
-    const processes = await new Response(stdout).text();
-    const lines = processes.split('\n');
+  //   const processes = await new Response(stdout).text();
+  //   const lines = processes.split('\n');
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.includes('bun') && line.includes('build') && line.includes('--watch')) {
-        const parts = line.trim().split(/\s+/);
-        if (parts.length >= 2) {
-          const pid = parseInt(parts[1], 10);
-          if (!isNaN(pid) && pid !== process.pid) {
-            try {
-              process.kill(pid, 'SIGTERM');
-              log.info(`Killed existing Bun build process with pid ${pid}.`);
-            }
-            catch (error) {
-              // Process might have already been killed or we don't have permission
-              log.warn(`Failed to kill process ${pid}: ${error}`);
-            }
-          }
-        }
-      }
-    }
-  }
-  catch (error) {
-    log.verbose(`Failed to check for existing Bun processes: ${error}`);
-  }
+  //   for (let i = 0; i < lines.length; i++) {
+  //     const line = lines[i];
+  //     if (line.includes('bun') && line.includes('build') && line.includes('--watch')) {
+  //       const parts = line.trim().split(/\s+/);
+  //       if (parts.length >= 2) {
+  //         const pid = parseInt(parts[1], 10);
+  //         if (!isNaN(pid) && pid !== process.pid) {
+  //           try {
+  //             process.kill(pid, 'SIGTERM');
+  //             log.info(`Killed existing Bun build process with pid ${pid}.`);
+  //           }
+  //           catch (error) {
+  //             // Process might have already been killed or we don't have permission
+  //             log.warn(`Failed to kill process ${pid}: ${error}`);
+  //           }
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+  // catch (error) {
+  //   log.verbose(`Failed to check for existing Bun processes: ${error}`);
+  // }
 
   const tempDir = Path.join(OS.tmpdir(), `bun-bundle-${crypto.randomUUID()}`);
   await FS.mkdir(tempDir, { recursive: true });
@@ -93,13 +107,11 @@ export async function initializeScriptBundle (options: BundlerOptions) {
     if (stat.mtimeMs > lastModified) {
       lastModified = stat.mtimeMs;
       log.good(`Bundle file has been updated (${eventType}) at ${dateFormatter.format(stat.mtimeMs)}.`);
-      onClientScriptUpdated?.();
+      onClientScriptUpdated?.(bundleFile);
     }
   }, 500));
 
   await ready.promise;
 
-  return function serveBundle (req: WebRequest) {
-    req.serve(new Response(bundleFile));
-  };
+  return bundleFile;
 }
