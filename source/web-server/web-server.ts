@@ -21,8 +21,10 @@ export class WebServer<TServerContext> {
     const server: Bun.Server = Bun.serve<ClientWebSocket.Data<TServerContext>, any>({
       development: true,
       port: config.port,
-      key: Bun.file(ProcessEnv.Certificates['localhost.key']),
-      cert: Bun.file(ProcessEnv.Certificates['localhost.cert']),
+      tls: {
+        key: Bun.file(ProcessEnv.Certificates['localhost.key']),
+        cert: Bun.file(ProcessEnv.Certificates['localhost.cert']),
+      },
       fetch (req, server) {
         const url = new URL(req.url);
         const isUpgradeRequest = req.headers.get('upgrade');
@@ -39,9 +41,9 @@ export class WebServer<TServerContext> {
         return promise;
       },
       websocket: {
-        open (ws) { ws.data.client = clients.allocate(ws); },
-        close (ws) { ws.data.client.webSocketClosed(); },
-        message (ws, message) { ws.data.client.webSocketMessage(message); },
+        open (ws: Bun.ServerWebSocket<ClientWebSocket.Data<TServerContext>>) { ws.data.client = clients.allocate(ws); },
+        close (ws: Bun.ServerWebSocket<ClientWebSocket.Data<TServerContext>>) { ws.data.client.webSocketClosed(); },
+        message (ws: Bun.ServerWebSocket<ClientWebSocket.Data<TServerContext>>, message: string | Buffer) { ws.data.client.webSocketMessage(message); },
         // drain (ws) { console.debug(`ws drain`); }
       },
     });
