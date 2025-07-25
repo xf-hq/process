@@ -93,7 +93,7 @@ export class WebRequest {
   serveStream (stream: ReadableStream) { this.serveContent('application/octet-stream', stream); }
   serveText (text: string) { this.serveContent('text/plain', text); }
   serveNumber (number: number) { this.serveContent('text/plain', number.toString()); }
-  serveJSON (data: any) { this.serveContent('application/json', JSON.stringify(data)); }
+  serveJSON<T> (data: T) { this.serveContent('application/json', JSON.stringify(data)); }
   serveJS (js: string) { this.serveContent('application/javascript', js); }
   serveHTML (html: string) { this.serveContent('text/html', html); }
   serveCSS (css: string) { this.serveContent('text/css', css); }
