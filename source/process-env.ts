@@ -3,6 +3,7 @@ import * as FSP from 'fs/promises';
 import * as JSONC from 'jsonc-parser';
 import * as Path from 'path';
 
+let designatedRootDir: string;
 let packageJsonDir: string;
 let packageJsonPath: string;
 let repoRootDir: string;
@@ -15,6 +16,7 @@ let dbdirInitialized = false;
 export class ProcessEnv {
   private constructor () {}
 
+  static get DesignatedRootDir () { return designatedRootDir!; }
   /**
    * The absolute path of the closest directory containing a package.json file, starting at the directory containing the
    * script that launched the process, and recursively searching upwards towards the root of the filesystem.
@@ -64,6 +66,12 @@ export namespace ProcessEnv {
   export async function initialize (options: Options = {}): Promise<void> {
     const MAIN_SCRIPT_URL = Bun.main;
     const MAIN_SCRIPT_DIR = Path.dirname(MAIN_SCRIPT_URL);
+
+    const rootDirMarkerPath = await findClosestFileSystemPathTowardsRoot('.root.dir');
+    const rootDirJsonText = await FSP.readFile(rootDirMarkerPath, 'utf-8');
+    const rootDirJsonData = JSON.parse(rootDirJsonText) as { relativePath: string };
+    designatedRootDir = Path.resolve(Path.dirname(rootDirMarkerPath), rootDirJsonData.relativePath);
+
     packageJsonPath = await findClosestFileSystemPathTowardsRoot(MAIN_SCRIPT_DIR, 'package.json');
     packageJsonDir = Path.dirname(packageJsonPath);
     repoRootDir = await findClosestDirContainingFileOrDirName(packageJsonDir, '.git');
@@ -105,7 +113,7 @@ export namespace ProcessEnv {
     catch {
       const parentDir = Path.resolve(dir, '..');
       if (parentDir === dir) {
-        throw new Error(`No file named ${filename} was found in ${dir} or any directory above it.`);
+        throw new Error(`No file system entry named ${filename} was found in ${dir} or any directory above it.`);
       }
       return findClosestFileSystemPathTowardsRoot(parentDir, filename);
     }
@@ -132,7 +140,7 @@ export namespace ProcessEnv {
     catch {
       const parentDir = Path.resolve(dir, '..');
       if (parentDir === dir) {
-        throw new Error(`No subdirectory named ${name} was found in ${dir} or any directory above it.`);
+        throw new Error(`No file system entry named ${name} was found in ${dir} or any directory above it.`);
       }
       return findClosestDirContainingFileOrDirName(parentDir, name);
     }
