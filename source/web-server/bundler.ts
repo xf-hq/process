@@ -36,53 +36,50 @@ export async function initializeScriptBundleRouteHandler (options: BundlerOption
 }
 
 export async function initializeScriptBundle (options: BundlerOptions): Promise<Bun.BunFile> {
-  const { log, onClientScriptUpdated, projectDir, entrypointPath } = options;
-
-  // // [TEMPORARY BUN ISSUE WORKAROUND] Kill any existing Bun build processes to prevent orphaned processes:
-  // try {
-  //   const { stdout } = Bun.spawn(['ps', 'aux'], {
-  //     stdout: 'pipe',
-  //     stderr: 'pipe',
-  //   });
-
-  //   const processes = await new Response(stdout).text();
-  //   const lines = processes.split('\n');
-
-  //   for (let i = 0; i < lines.length; i++) {
-  //     const line = lines[i];
-  //     if (line.includes('bun') && line.includes('build') && line.includes('--watch')) {
-  //       const parts = line.trim().split(/\s+/);
-  //       if (parts.length >= 2) {
-  //         const pid = parseInt(parts[1], 10);
-  //         if (!isNaN(pid) && pid !== process.pid) {
-  //           try {
-  //             process.kill(pid, 'SIGTERM');
-  //             log.info(`Killed existing Bun build process with pid ${pid}.`);
-  //           }
-  //           catch (error) {
-  //             // Process might have already been killed or we don't have permission
-  //             log.warn(`Failed to kill process ${pid}: ${error}`);
-  //           }
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
-  // catch (error) {
-  //   log.verbose(`Failed to check for existing Bun processes: ${error}`);
-  // }
+  const { log, onClientScriptUpdated, projectDir } = options;
+  const entrypointPath = Path.resolve(projectDir, options.entrypointPath);
 
   const tempDir = Path.join(OS.tmpdir(), `bun-bundle-${crypto.randomUUID()}`);
   await FS.mkdir(tempDir, { recursive: true });
 
   const bundlePath = Path.join(tempDir, 'bundle.js');
 
-  const args = ['build', Path.resolve(projectDir, entrypointPath), '--outfile', bundlePath, '--watch', '--sourcemap=inline', '--no-clear-screen'];
-  const proc = spawn('bun', args, {
+  const proc = Bun.spawn([
+    'bun', 'build', entrypointPath,
+    '--outfile', bundlePath,
+    '--watch',
+    '--sourcemap=inline',
+    '--no-clear-screen',
+  ], {
     cwd: projectDir,
-    stdio: 'inherit',
-    detached: false,
+    stdout: 'ignore',
   });
+
+  if (OS.platform() === 'linux' || OS.platform() === 'darwin') {
+    // When Bun restarts in watch mode, for some reason old child processes are orphaned and not killed. The code below
+    // will kill any existing Bun build processes that target `entrypointPath`.
+    try {
+      for await (const line of Bun.$`ps aux | grep 'bun build ${entrypointPath}'`.lines()) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 2) continue;
+        const pid = parseInt(parts[1]);
+        if (pid !== proc.pid) {
+          try {
+            process.kill(pid, 'SIGTERM');
+            log.good(`Killed existing Bun build process with pid ${pid}.`);
+          }
+          catch (error) {
+            if (error.code !== 'ESRCH') {
+              log.warn(`Failed to kill process ${pid}: ${error.message ?? error}`);
+            }
+          }
+        }
+      }
+    }
+    catch (error) {
+      log.verbose(`Failed to check for existing Bun processes: ${error}`);
+    }
+  }
 
   log.verbose(`Bun build watcher started with pid ${proc.pid}.`);
 
