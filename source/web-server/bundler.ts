@@ -22,7 +22,8 @@ interface BundlerOptions {
 }
 
 export async function initializeScriptBundleRouteHandler (options: BundlerOptions) {
-  let bundleFile: Bun.BunFile = await initializeScriptBundle({
+  let bundleFile: Bun.BunFile;
+  await initializeScriptBundle({
     ...options,
     onClientScriptUpdated: (_bundleFile) => {
       bundleFile = _bundleFile;
@@ -92,7 +93,6 @@ export async function initializeScriptBundle (options: BundlerOptions): Promise<
   let lastModified = 0;
 
   const watcher = watch(bundlePath, { recursive: true });
-  // Use Intl to create a nice date formatter for logging:
   const dateFormatter = new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: '2-digit',
