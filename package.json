@@ -13,6 +13,7 @@
     "typescript": "latest"
   },
   "dependencies": {
+    "xf-common": "workspace:*",
     "@typescript-eslint/tsconfig-utils": "^8.35.0",
     "chalk": "latest",
     "jsonc-parser": "latest"
