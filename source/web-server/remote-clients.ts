@@ -145,6 +145,7 @@ export namespace RemoteClient {
       const messaging = this._messaging;
       if (messaging) {
         const context = messaging.createContext(
+          message,
           PathLens.from(':', message.type),
           message.data,
           this._controller.serverContext,
@@ -187,7 +188,7 @@ export namespace RemoteClient {
   export interface MessagingConfig<TMessageContext extends Messaging.InboundMessageContext, TServerContext> {
     readonly abort?: AbortSignal;
     readonly router: Messaging.MessageHandler<TMessageContext>;
-    readonly createContext: (messageType: PathLens, messageData: any, context: TServerContext) => TMessageContext;
+    readonly createContext: (message: Messaging.Message, messageType: PathLens, messageData: any, context: TServerContext) => TMessageContext;
     readonly onClosed?: () => void;
   }
 }
