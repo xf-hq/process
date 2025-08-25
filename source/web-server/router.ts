@@ -1,4 +1,3 @@
-import { ThisShouldBeUnreachable } from '@xf-common/general/errors.ts';
 import { isDefined, isFunction, isNotNothing, isUndefined } from '@xf-common/general/type-checking.ts';
 import type { RemoteClient } from './remote-clients.ts';
 import { WebRequest } from './web-request.ts';
@@ -45,17 +44,17 @@ export class Router {
   };
 
   constructor (mainRoute: Route) {
-    this.#main = mainRoute;
+    this._main = mainRoute;
   }
 
-  readonly #main: Route;
+  private readonly _main: Route;
 
   async dispatch (request: Request, client: RemoteClient | null, respond?: (response: Response) => void) {
     const pathstr = new URL(request.url, 'https://localhost').pathname;
     const path = pathstr.substring(1).split('?')[0].split('/').filter(p => p !== '');
     const wreq = new WebRequest(request, path, client, respond);
     try {
-      await this.#main.next(wreq, 0);
+      await this._main.next(wreq, 0);
     }
     catch (e) {
       wreq.serveInternalError(`An error occurred while processing the request.`);
@@ -97,18 +96,16 @@ const isRouteMethodMapSpec = (spec: any): spec is RouteMethodMapSpec => {
 
 class Route implements RouteDispatcher {
   static parse (spec: RouteSpec) {
-    if (isFunction(spec)) return new RouteHandler(spec);
+    if (isFunction(spec)) {
+      const exactHandler = new RouteHandler(spec);
+      return new Route(exactHandler);
+    }
     let exactHandler!: RouteDispatcher;
     let catchallHandler!: RouteDispatcher;
 
     if (isRouteMethodMapSpec(spec)) {
-      let key: keyof RouteMethodMapSpec | undefined;
-      for (key in spec) { break; }
-      if (isUndefined(key)) {
-        throw new ThisShouldBeUnreachable();
-      }
-      const subspec = spec[key as keyof RouteMethodMapSpec]!;
-      return Route.parse({ '/': isFunction(subspec) ? { '*': subspec } : subspec });
+      const exactHandler = SuccessfulRoutePathMatch.parse(spec);
+      return new Route(exactHandler);
     }
 
     const routes: SRecord.Of<RouteSpec> = {};
@@ -140,25 +137,25 @@ class Route implements RouteDispatcher {
       : new Route(exactHandler, catchallHandler);
   }
 
-  constructor (exactHandler: RouteDispatcher, catchallHandler: RouteDispatcher, routes?: RouteDispatcher) {
-    this.#exact = exactHandler ?? ROUTE_NOOP;
-    this.#catchall = catchallHandler ?? ROUTE_NOOP;
-    this.#routes = routes ?? ROUTE_NOOP;
+  constructor (exactHandler: RouteDispatcher, catchallHandler?: RouteDispatcher, routes?: RouteDispatcher) {
+    this._exact = exactHandler ?? ROUTE_NOOP;
+    this._catchall = catchallHandler ?? ROUTE_NOOP;
+    this._routes = routes ?? ROUTE_NOOP;
   }
 
-  readonly #exact: RouteDispatcher;
-  readonly #catchall: RouteDispatcher;
-  readonly #routes: RouteDispatcher;
+  private readonly _exact: RouteDispatcher;
+  private readonly _catchall: RouteDispatcher;
+  private readonly _routes: RouteDispatcher;
 
   async next (request: WebRequest, pathIndex: number) {
     if (request.isPathEnd(pathIndex)) {
-      await this.#exact.next(request, pathIndex);
+      await this._exact.next(request, pathIndex);
     }
     else {
-      await this.#routes.next(request, pathIndex);
+      await this._routes.next(request, pathIndex);
     }
     if (request.unhandled) {
-      await this.#catchall.next(request, pathIndex);
+      await this._catchall.next(request, pathIndex);
     }
   }
 }
@@ -176,25 +173,25 @@ class SuccessfulRoutePathMatch implements RouteDispatcher {
   }
 
   constructor (methods: RouteMethodMap, catchall: RouteDispatcher) {
-    this.#methods = methods;
-    this.#catchall = catchall;
+    this._methods = methods;
+    this._catchall = catchall;
   }
 
-  readonly #methods: RouteMethodMap;
-  readonly #catchall: RouteDispatcher;
+  private readonly _methods: RouteMethodMap;
+  private readonly _catchall: RouteDispatcher;
 
   async next (request: WebRequest, pathIndex: number) {
     let handler: RouteDispatcher;
     if (request.hasWebSocketClient) {
       request.setHandled();
-      handler = this.#methods[RouteMethodType.WS]!;
+      handler = this._methods[RouteMethodType.WS]!;
       if (isUndefined(handler)) {
         request.client.reject();
         return;
       }
     }
     else {
-      handler = this.#methods[request.method] ?? this.#catchall;
+      handler = this._methods[request.method] ?? this._catchall;
     }
     await handler.next(request, pathIndex);
   }
@@ -220,24 +217,24 @@ class RouteMethod implements RouteDispatcher {
   }
 
   constructor (contentTypes: Record<string, RouteDispatcher>, catchallHandler: RouteDispatcher = ROUTE_NOOP) {
-    this.#contentTypes = contentTypes;
-    this.#catchallHandler = catchallHandler;
+    this._contentTypes = contentTypes;
+    this._catchallHandler = catchallHandler;
   }
 
-  readonly #contentTypes: Record<string, RouteDispatcher>;
-  readonly #catchallHandler: RouteDispatcher;
+  private readonly _contentTypes: Record<string, RouteDispatcher>;
+  private readonly _catchallHandler: RouteDispatcher;
 
   async next (request: WebRequest, pathIndex: number) {
     const { accept } = request;
     for (let j = 0; j < accept.length; ++j) {
-      const handler = this.#contentTypes[accept[j]];
+      const handler = this._contentTypes[accept[j]];
       if (isDefined(handler)) {
         await handler!.next(request, pathIndex);
         break;
       }
     }
     if (request.unhandled) {
-      await this.#catchallHandler.next(request, pathIndex);
+      await this._catchallHandler.next(request, pathIndex);
     }
   }
 }
@@ -262,19 +259,19 @@ class RouteMap implements RouteDispatcher {
   }
 
   constructor (staticRoutes: { [key: string]: Route }, regexpRoutes: readonly RouteMap.Entry[]) {
-    this.#staticRoutes = staticRoutes;
-    this.#regexpRoutes = regexpRoutes;
+    this._staticRoutes = staticRoutes;
+    this._regexpRoutes = regexpRoutes;
   }
 
-  readonly #staticRoutes: { [key: string]: Route };
-  readonly #regexpRoutes: readonly RouteMap.Entry[];
+  private readonly _staticRoutes: { [key: string]: Route };
+  private readonly _regexpRoutes: readonly RouteMap.Entry[];
 
   async next (request: WebRequest, pathIndex: number) {
     const pathSegment = request.pathSegment(pathIndex);
-    const route = this.#staticRoutes[pathSegment];
+    const route = this._staticRoutes[pathSegment];
     if (isNotNothing(route)) await route.next(request, pathIndex + 1);
-    for (let rxi = 0; rxi < this.#regexpRoutes.length; ++rxi) {
-      const entry = this.#regexpRoutes[rxi];
+    for (let rxi = 0; rxi < this._regexpRoutes.length; ++rxi) {
+      const entry = this._regexpRoutes[rxi];
       if (entry.rx.test(pathSegment)) {
         await entry.route.next(request, pathIndex + 1);
         return;
@@ -288,12 +285,12 @@ class RouteHandler implements RouteDispatcher {
     return new RouteHandler(spec);
   }
 
-  readonly #handler: RouteRequestHandler;
+  private readonly _handler: RouteRequestHandler;
   constructor (handler: RouteRequestHandler) {
-    this.#handler = handler;
+    this._handler = handler;
   }
   async next (request: WebRequest, pathIndex: number) {
-    const handler = this.#handler;
+    const handler = this._handler;
     await handler(request, pathIndex);
   }
 }
