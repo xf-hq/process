@@ -6,6 +6,10 @@ import * as FS from 'node:fs';
 import * as OS from 'node:os';
 import * as Path from 'node:path';
 
+/**
+ * @deprecated
+ * THIS DOESN'T WORK PROPERLY. DO NOT USE IT UNTIL IT IS FIXED!
+ */
 export class FileSystemWatcher {
   readonly #locations = new Map<string, WatchedLocation>();
 

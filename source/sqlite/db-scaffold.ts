@@ -290,7 +290,12 @@ export namespace DbScaffold {
     }
   }
 
-  export interface InitializerConfig<TDatabase extends DbInstance<TPreparedQueries, TPreparedOps>, TSchema extends Schema, TPreparedQueries, TPreparedOps> {
+  export interface InitializerConfig<
+    TDatabase extends DbInstance<TPreparedQueries, ReturnType<TPrepareOps>>,
+    TSchema extends Schema,
+    TPreparedQueries,
+    TPrepareOps extends (db: Database, queries: TPreparedQueries, ops: DbInstance.OpsCache<TDatabase>) => unknown
+  > {
     log: ConsoleLogger;
     /** Defaults to 'normal' (see {@link ConsoleLogLevel}). */
     logLevel?: ConsoleLogLevel;
@@ -298,10 +303,15 @@ export namespace DbScaffold {
     dbSetupAction?: SetupAction;
     createSchema: () => TSchema;
     prepareQueries: (db: Database, schema: TSchema) => TPreparedQueries;
-    prepareOps: (db: Database, queries: TPreparedQueries, ops: DbInstance.OpsCache<TDatabase>) => TPreparedOps;
-    DbConstructor: new (db: Database, queries: TPreparedQueries, prepareOps: (db: Database, queries: TPreparedQueries, ops: DbInstance.OpsCache<TDatabase>) => TPreparedOps) => TDatabase;
+    prepareOps: TPrepareOps;
+    DbConstructor: new (db: Database, queries: TPreparedQueries, prepareOps: TPrepareOps) => TDatabase;
   }
-  export function createInitializer<TDatabase extends DbInstance<TPreparedQueries, TPreparedOps>, TSchema extends Schema, TPreparedQueries, TPreparedOps> (config: InitializerConfig<TDatabase, TSchema, TPreparedQueries, TPreparedOps>) {
+  export function createInitializer<
+    TDatabase extends DbInstance<TPreparedQueries, ReturnType<TPrepareOps>>,
+    TSchema extends Schema,
+    TPreparedQueries,
+    TPrepareOps extends (db: Database, queries: TPreparedQueries, ops: DbInstance.OpsCache<TDatabase>) => unknown
+  > (config: InitializerConfig<TDatabase, TSchema, TPreparedQueries, TPrepareOps>) {
     const log = config.log;
 
     return async function initialize (dbname: string, dbdir: string, logLevel: ConsoleLogLevel = config.logLevel ?? 'normal'): Promise<TDatabase> {
