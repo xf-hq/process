@@ -242,10 +242,10 @@ export namespace DbScaffold {
     readonly ops: TPreparedOps;
 
     $nontransactional<F extends (db: this, ...args: any[]) => any> (f: F): DbInstance.PreparedOp<F> {
-      return this.#ops.$nontransactional((...args: SliceTuple.Rest.B<Parameters<F>>) => f(this, ...args));
+      return this.#ops.$nontransactional(f);
     }
     $transactional<F extends (db: this, ...args: any[]) => any> (f: F, g?: (result: ReturnType<F>) => void): DbInstance.PreparedOp<F> {
-      return this.#ops.$transactional((...args: SliceTuple.Rest.B<Parameters<F>>) => f(this, ...args), g);
+      return this.#ops.$transactional(f, g);
     }
 
     /**
@@ -267,7 +267,7 @@ export namespace DbScaffold {
       ) {}
       readonly #ops = new WeakMap<AnyFunction, any>();
 
-      $nontransactional<F extends (...args: any[]) => any> (f: F): F {
+      $nontransactional<F extends (...args: any[]) => any> (f: F): PreparedOp<F> {
         let cached = this.#ops.get(f);
         if (isUndefined(cached)) {
           this.#ops.set(f, cached = (...args: any) => f(this.__dbInstance, ...args));
@@ -275,7 +275,7 @@ export namespace DbScaffold {
         return cached;
       }
 
-      $transactional<F extends (...args: any[]) => any> (f: F, g?: (result: ReturnType<F>) => void): F {
+      $transactional<F extends (db: TDbInstance, ...args: any[]) => any> (f: F, g?: (result: ReturnType<F>) => void): PreparedOp<F> {
         let cached = this.#ops.get(f);
         if (isUndefined(cached)) {
           const runTransaction = this.__dbInstance.__db.transaction((...args: any) => f(this.__dbInstance, ...args));
