@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "xf-common": "workspace:*",
-    "chalk": "latest"
+    "chalk": "latest",
+    "json-stable-stringify": "latest"
   }
 }
